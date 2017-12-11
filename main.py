@@ -1,7 +1,6 @@
 import getopt
 import sys
 from enum import Enum
-from multiprocessing import Process, Queue, Value, Array, Lock
 from time import sleep
 import builtins
 from datetime import datetime
@@ -11,86 +10,69 @@ from threading import Thread
 class Direction(Enum):
     UP = 1
     DOWN = 2
+    STOP = 3
+    OPEN_DOORS = 4
 
 
 def print(val):
     builtins.print(datetime.now(), val)
 
 
-class WayFinder(Process):
+class WayFinder(Thread):
 
-    def __init__(self, target, flour, flour_count):
+    def __init__(self, flour, flour_count):
         super().__init__()
-        self.call = Array('i', [0 for _ in range(flour_count)])
-        self.move = Array('i', [0 for _ in range(flour_count)])
+        self._call = [0 for _ in range(flour_count)]
+        self._move = [0 for _ in range(flour_count)]
         self._flour_count = flour_count
-        self._target = target
+        self._target = 0
         self._stop = True
         self._flour = flour
-        self._need_update = Value('b', False)
         self._direction = Direction.UP
 
     def empty(self):
-        return (sum(self.call) + sum(self.move)) == 0
+        return (sum(self._call) + sum(self._move)) == 0
 
-    def updated(self):
-        self._need_update.value = True
+    def call(self, flour):
+        self._call[flour] = 1
 
-    def run(self):
-        while True:
-            while self._need_update.value:
-                self._need_update.value = False
-                self.call[self._flour.value - 1] = 0
-                self.move[self._flour.value - 1] = 0
-                if self._direction == Direction.UP:
-                    for i in range(self._flour.value, self._flour_count):
-                        if self.call[i] or self.move[i]:
-                            self._target.value = i + 1
-                            break
-                        self._direction = Direction.DOWN
-                if self._direction == Direction.DOWN:
-                    for i in range(0, self._flour.value):
-                        if self.call[i] or self.move[i]:
-                            self._target.value = i + 1
-                            break
-                        self._direction = Direction.UP
-            sleep(0.0001)
+    def move(self, flour):
+        self._move[flour] = 1
+
+    def arrived(self):
+        self._call[self._flour.value] = 0
+        self._move[self._flour.value] = 0
+
+    def get_action(self):
+        return self._direction
 
 
-class Lift(Process):
+class Lift(Thread):
 
     def __init__(self, flour_count, flour_height, speed, doors_delay):
         super().__init__()
-        self._queue_call = Queue()
-        self._queue_move = Queue()
         self._flour_count = flour_count
-        self._flour_height = flour_height
-        self._speed = speed
         self._doors_delay = doors_delay
         self._flour_pass_time = flour_height / speed
-        self._flour = Value('i', 1)
-        self._target = Value('i', 1)
-        self._way_finder = WayFinder(self._target, self._flour, flour_count)
-        self._way_finder.start()
+        self._flour = 0
+        self._direction = Direction.UP
 
     def call(self, flour):
-        if flour < 1 or flour > self._flour_count:
-            print('Error: Lift called to the {} flour, but we have flours from 1 to {}'
-                  .format(flour, self._flour_count))
+        if flour < 0 or flour >= self._flour_count:
+            print('Error: Lift called to the {} flour but we have flours from 1 to {}'
+                  .format(flour + 1, self._flour_count))
             return
-        self._way_finder.call[flour - 1] = 1
-        self._way_finder.updated()
+        self._way_finder.call(flour)
 
     def move(self, flour):
-        if flour < 1 or flour > self._flour_count:
-            print('Error: Lift called to the {} flour, but we have flours from 1 to {}'
-                  .format(flour, self._flour_count))
+        if flour < 0 or flour >= self._flour_count:
+            print('Error: Lift called to the {} flour but we have flours from 1 to {}'
+                  .format(flour + 1, self._flour_count))
             return
-        self._way_finder.move[flour - 1] = 1
-        self._way_finder.updated()
+        self._way_finder.move(flour)
 
     def _print_flour(self):
-        print('{} flour'.format(self._flour.value))
+        print('{} flour'.format(self._flour + 1))
 
     def _print_doors(self):
         print('Doors opened')
@@ -100,16 +82,20 @@ class Lift(Process):
     def run(self):
         try:
             while True:
-                while not self._way_finder.empty():
-                    if self._target.value != self._flour.value:
-                        sleep(self._flour_pass_time)
-                        self._flour.value += 1 if self._target.value > self._flour.value else -1
-                        self._print_flour()
-                    if self._target.value == self._flour.value:
-                        self._way_finder.updated()
-                        self._print_doors()
-                sleep(0.0001)
+                action = self._way_finder.get_action()
 
+                if action == Direction.DOWN:
+                    sleep(self._flour_pass_time)
+                    self._flour -= 1
+                    self._print_flour()
+                elif action == Direction.UP:
+                    sleep(self._flour_pass_time)
+                    self._flour += 1
+                    self._print_flour()
+                elif action == Direction.OPEN_DOORS:
+                    self._print_doors()
+                else:
+                    sleep(0.0001)
         except KeyboardInterrupt:
             pass
 
@@ -119,10 +105,10 @@ def main():
     try:
         opts, args = getopt.getopt(args, 'c:f:s:d:', ['flour_count=', 'flour_height=', 'speed=', 'doors_delay='])
     except getopt.GetoptError:
-        print('usage: {} -c <flour_count> -f <flour_height> -s <speed> -d <doors_delay>'.format(sys.argv[1]))
+        print('usage: python {} -c <flour_count> -f <flour_height> -s <speed> -d <doors_delay>'.format(sys.argv[0]))
         sys.exit(2)
     if len(opts) != 4:
-        print('usage: {} -c <flour_count> -f <flour_height> -s <speed> -d <doors_delay>'.format(sys.argv[1]))
+        print('usage: python {} -c <flour_count> -f <flour_height> -s <speed> -d <doors_delay>'.format(sys.argv[0]))
         sys.exit(2)
     flour_count = 0
     flour_height = 0
@@ -130,10 +116,13 @@ def main():
     doors_delay = 0
     for opt, arg in opts:
         if opt in ['-c', '--flour_count']:
-            if int(arg) < 5 or int(arg) > 20:
-                print('Error: Incorrect flour count. Must be from 5 to 20.')
-                sys.exit(2)
-            flour_count = int(arg)
+            try:
+                if int(arg) < 5 or int(arg) > 20:
+                    print('Error: Incorrect flour count. Must be integer from 5 to 20.')
+                    sys.exit(2)
+                flour_count = int(arg)
+            except ValueError:
+                print('Error: Incorrect flour count. Must be integer from 5 to 20.')
         if opt in ['-f', '--flour_height']:
             if float(arg) <= 0:
                 print('Error: Incorrect flour height. Must be greater then 0.')
@@ -156,9 +145,9 @@ def main():
             try:
                 order, flour = input().split()
                 if order == 'm':
-                    lift.move(int(flour))
+                    lift.move(int(flour) - 1)
                 elif order == 'c':
-                    lift.call(int(flour))
+                    lift.call(int(flour) - 1)
             except ValueError:
                 pass
     except KeyboardInterrupt:
