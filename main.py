@@ -1,50 +1,32 @@
 import getopt
 import sys
 from enum import Enum
-from time import sleep
+from time import sleep, time
 import builtins
-from datetime import datetime
-from threading import Thread
+from threading import Thread, Lock, Event
+
+
+class Action(Enum):
+    UP = 1
+    DOWN = 2
+    STOP = 3
+    OPEN_DOORS = 4
+    CLOSE_DOORS = 5
 
 
 class Direction(Enum):
     UP = 1
     DOWN = 2
-    STOP = 3
-    OPEN_DOORS = 4
+
+
+class DoorsState(Enum):
+    OPENED = 1
+    CLOSED = 2
 
 
 def print(val):
+    from datetime import datetime
     builtins.print(datetime.now(), val)
-
-
-class WayFinder(Thread):
-
-    def __init__(self, flour, flour_count):
-        super().__init__()
-        self._call = [0 for _ in range(flour_count)]
-        self._move = [0 for _ in range(flour_count)]
-        self._flour_count = flour_count
-        self._target = 0
-        self._stop = True
-        self._flour = flour
-        self._direction = Direction.UP
-
-    def empty(self):
-        return (sum(self._call) + sum(self._move)) == 0
-
-    def call(self, flour):
-        self._call[flour] = 1
-
-    def move(self, flour):
-        self._move[flour] = 1
-
-    def arrived(self):
-        self._call[self._flour.value] = 0
-        self._move[self._flour.value] = 0
-
-    def get_action(self):
-        return self._direction
 
 
 class Lift(Thread):
@@ -55,47 +37,109 @@ class Lift(Thread):
         self._doors_delay = doors_delay
         self._flour_pass_time = flour_height / speed
         self._flour = 0
-        self._direction = Direction.UP
+        self._action = Action.STOP
+        self._direction = Direction.UP.value
+        self._doors_state = DoorsState.CLOSED
+        self._call = [0 for _ in range(flour_count)]
+        self._move = [0 for _ in range(flour_count)]
+        self._btn_lock = Lock()
+        self._move_lock = Lock()
+        self._recalculate_needed = Event()
+        self._moving = False
 
-    def call(self, flour):
+    def call(self, flour, direction):
         if flour < 0 or flour >= self._flour_count:
             print('Error: Lift called to the {} flour but we have flours from 1 to {}'
                   .format(flour + 1, self._flour_count))
-            return
-        self._way_finder.call(flour)
+        else:
+            with self._btn_lock:
+                self._call[flour] = direction
+            self._recalculate_needed.set()
 
     def move(self, flour):
         if flour < 0 or flour >= self._flour_count:
             print('Error: Lift called to the {} flour but we have flours from 1 to {}'
                   .format(flour + 1, self._flour_count))
-            return
-        self._way_finder.move(flour)
+        else:
+            with self._btn_lock:
+                self._move[flour] = 1
+            self._recalculate_needed.set()
 
     def _print_flour(self):
         print('{} flour'.format(self._flour + 1))
 
-    def _print_doors(self):
-        print('Doors opened')
-        sleep(self._doors_delay)
-        print('Doors closed')
+    def _recalculate_next_step(self):
+        with self._move_lock, self._btn_lock:
+            if sum(self._move) + sum(self._call) == 0:
+                self._action = Action.STOP
+                return
+            if self._direction == Direction.UP.value and \
+                    sum(self._move[self._flour:]) + sum(self._call[self._flour + 1:]) == 0 and \
+                    self._call[self._flour] != self._direction:
+                self._direction = Direction.DOWN.value
+            elif self._direction == Direction.DOWN.value and \
+                    sum(self._move[:self._flour - 1]) + sum(self._call[:self._flour - 1]) == 0 and \
+                    self._call[self._flour] != self._direction:
+                self._direction = Direction.UP.value
+            if self._direction == Direction.UP.value:
+                if self._move[self._flour] or self._call[self._flour] == self._direction:
+                    if self._doors_state == DoorsState.CLOSED:
+                        self._action = Action.OPEN_DOORS
+                    else:
+                        self._move[self._flour] = 0
+                        self._call[self._flour] = 0
+                        self._action = Action.CLOSE_DOORS
+                else:
+                    for i in range(self._flour + 1, self._flour_count):
+                        if self._move[i] or self._call[i] == self._direction:
+                            self._action = Action.UP
+            if self._direction == Direction.DOWN.value:
+                if self._move[self._flour] or self._call[self._flour] == self._direction:
+                    if self._doors_state == DoorsState.CLOSED:
+                        self._action = Action.OPEN_DOORS
+                    else:
+                        self._move[self._flour] = 0
+                        self._call[self._flour] = 0
+                        self._action = Action.CLOSE_DOORS
+                else:
+                    for i in range(self._flour - 1, 0, -1):
+                        if self._move[i] or self._call[i] == self._direction:
+                            self._action = Action.DOWN
 
     def run(self):
         try:
+            next_time = time()
             while True:
-                action = self._way_finder.get_action()
-
-                if action == Direction.DOWN:
-                    sleep(self._flour_pass_time)
-                    self._flour -= 1
-                    self._print_flour()
-                elif action == Direction.UP:
-                    sleep(self._flour_pass_time)
-                    self._flour += 1
-                    self._print_flour()
-                elif action == Direction.OPEN_DOORS:
-                    self._print_doors()
-                else:
-                    sleep(0.0001)
+                start_time = time()
+                if start_time >= next_time:
+                    if self._moving:
+                        self._print_flour()
+                    with self._move_lock:
+                        if self._action == Action.DOWN:
+                            self._moving = True
+                            self._flour -= 1
+                            next_time += self._flour_pass_time
+                        elif self._action == Action.UP:
+                            self._moving = True
+                            self._flour += 1
+                            next_time += self._flour_pass_time
+                        elif self._action == Action.OPEN_DOORS:
+                            self._moving = False
+                            print('Doors opened')
+                            self._doors_state = DoorsState.OPENED
+                            next_time += self._doors_delay
+                        elif self._action == Action.CLOSE_DOORS:
+                            self._moving = False
+                            print('Doors closed')
+                            self._doors_state = DoorsState.CLOSED
+                        else:
+                            self._moving = False
+                            next_time = start_time
+                            sleep(0.0001)
+                with self._btn_lock:
+                    Thread(target=self._recalculate_next_step).start()
+                self._recalculate_needed.clear()
+                self._recalculate_needed.wait(next_time - time())
         except KeyboardInterrupt:
             pass
 
@@ -146,8 +190,10 @@ def main():
                 order, flour = input().split()
                 if order == 'm':
                     lift.move(int(flour) - 1)
-                elif order == 'c':
-                    lift.call(int(flour) - 1)
+                elif order == 'cu':
+                    lift.call(int(flour) - 1, Direction.UP.value)
+                elif order == 'cd':
+                    lift.call(int(flour) - 1, Direction.DOWN.value)
             except ValueError:
                 pass
     except KeyboardInterrupt:
