@@ -72,7 +72,7 @@ class Lift(Thread):
                 return
 
             if self._direction == Direction.UP.value and \
-                    sum(self._move[self._floor:]) + sum(self._call[self._floor + 1:]) == 0 and \
+                    sum(self._move[self._floor + 1:]) + sum(self._call[self._floor + 1:]) == 0 and \
                     self._call[self._floor] & self._direction == 0:
                 self._direction = Direction.DOWN.value
             elif self._direction == Direction.DOWN.value and \
@@ -86,7 +86,7 @@ class Lift(Thread):
                         self._action = Action.OPEN_DOORS
                 else:
                     for i in range(self._floor + 1, self._floor_count):
-                        if self._move[i] or self._call[i] & self._direction != 0:
+                        if self._move[i] or self._call[i]:
                             self._action = Action.UP
             elif self._direction == Direction.DOWN.value:
                 if self._move[self._floor] or self._call[self._floor] & self._direction != 0:
@@ -94,7 +94,7 @@ class Lift(Thread):
                         self._action = Action.OPEN_DOORS
                 else:
                     for i in range(self._floor - 1, -1, -1):
-                        if self._move[i] or self._call[i] & self._direction != 0:
+                        if self._move[i] or self._call[i]:
                             self._action = Action.DOWN
 
     def run(self):
