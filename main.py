@@ -47,7 +47,7 @@ class Lift(Thread):
                   .format(floor + 1, self._floor_count))
         else:
             with self._btn_lock:
-                self._call[floor] = direction
+                self._call[floor] |= direction
             self._recalculate_needed.set()
 
     def move(self, floor):
@@ -66,7 +66,7 @@ class Lift(Thread):
         with self._move_lock, self._btn_lock:
             if self._doors_state == DoorsState.OPENED:
                 self._move[self._floor] = 0
-                self._call[self._floor] = 0
+                self._call[self._floor] &= ~self._direction
 
             if sum(self._move) + sum(self._call) == 0:
                 self._action = Action.STOP
@@ -74,28 +74,28 @@ class Lift(Thread):
 
             if self._direction == Direction.UP.value and \
                     sum(self._move[self._floor:]) + sum(self._call[self._floor + 1:]) == 0 and \
-                    self._call[self._floor] != self._direction:
+                    self._call[self._floor] & self._direction == 0:
                 self._direction = Direction.DOWN.value
             elif self._direction == Direction.DOWN.value and \
                     sum(self._move[:self._floor - 1]) + sum(self._call[:self._floor - 1]) == 0 and \
-                    self._call[self._floor] != self._direction:
+                    self._call[self._floor] & self._direction == 0:
                 self._direction = Direction.UP.value
 
             if self._direction == Direction.UP.value:
-                if self._move[self._floor] or self._call[self._floor] == self._direction:
+                if self._move[self._floor] or self._call[self._floor] & self._direction != 0:
                     if self._doors_state == DoorsState.CLOSED:
                         self._action = Action.OPEN_DOORS
                 else:
                     for i in range(self._floor + 1, self._floor_count):
-                        if self._move[i] or self._call[i] == self._direction:
+                        if self._move[i] or self._call[i] & self._direction != 0:
                             self._action = Action.UP
             elif self._direction == Direction.DOWN.value:
-                if self._move[self._floor] or self._call[self._floor] == self._direction:
+                if self._move[self._floor] or self._call[self._floor] & self._direction != 0:
                     if self._doors_state == DoorsState.CLOSED:
                         self._action = Action.OPEN_DOORS
                 else:
                     for i in range(self._floor - 1, -1, -1):
-                        if self._move[i] or self._call[i] == self._direction:
+                        if self._move[i] or self._call[i] & self._direction != 0:
                             self._action = Action.DOWN
 
     def run(self):
