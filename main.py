@@ -67,8 +67,6 @@ class Lift(Thread):
             if self._doors_state == DoorsState.OPENED:
                 self._move[self._floor] = 0
                 self._call[self._floor] = 0
-                self._action = Action.CLOSE_DOORS
-                return
 
             if sum(self._move) + sum(self._call) == 0:
                 self._action = Action.STOP
@@ -108,6 +106,9 @@ class Lift(Thread):
                 if start_time >= next_time:
                     if self._moving:
                         self._print_floor()
+                    if self._doors_state == DoorsState.OPENED:
+                        print('Doors closed')
+                        self._doors_state = DoorsState.CLOSED
                     with self._move_lock:
                         if self._action == Action.DOWN:
                             self._moving = True
@@ -122,15 +123,10 @@ class Lift(Thread):
                             print('Doors opened')
                             self._doors_state = DoorsState.OPENED
                             next_time += self._doors_delay
-                        elif self._action == Action.CLOSE_DOORS:
-                            self._moving = False
-                            print('Doors closed')
-                            self._doors_state = DoorsState.CLOSED
                         else:
                             self._moving = False
                             next_time = start_time
                             sleep(0.0001)
-                        self._action = Action.STOP
                 with self._btn_lock:
                     Thread(target=self._recalculate_next_step).start()
                 self._recalculate_needed.clear()
