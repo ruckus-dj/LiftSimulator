@@ -64,9 +64,16 @@ class Lift(Thread):
 
     def _recalculate_next_step(self):
         with self._move_lock, self._btn_lock:
+            if self._doors_state == DoorsState.OPENED:
+                self._move[self._flour] = 0
+                self._call[self._flour] = 0
+                self._action = Action.CLOSE_DOORS
+                return
+
             if sum(self._move) + sum(self._call) == 0:
                 self._action = Action.STOP
                 return
+
             if self._direction == Direction.UP.value and \
                     sum(self._move[self._flour:]) + sum(self._call[self._flour + 1:]) == 0 and \
                     self._call[self._flour] != self._direction:
@@ -75,26 +82,19 @@ class Lift(Thread):
                     sum(self._move[:self._flour - 1]) + sum(self._call[:self._flour - 1]) == 0 and \
                     self._call[self._flour] != self._direction:
                 self._direction = Direction.UP.value
+
             if self._direction == Direction.UP.value:
                 if self._move[self._flour] or self._call[self._flour] == self._direction:
                     if self._doors_state == DoorsState.CLOSED:
                         self._action = Action.OPEN_DOORS
-                    else:
-                        self._move[self._flour] = 0
-                        self._call[self._flour] = 0
-                        self._action = Action.CLOSE_DOORS
                 else:
                     for i in range(self._flour + 1, self._flour_count):
                         if self._move[i] or self._call[i] == self._direction:
                             self._action = Action.UP
-            if self._direction == Direction.DOWN.value:
+            elif self._direction == Direction.DOWN.value:
                 if self._move[self._flour] or self._call[self._flour] == self._direction:
                     if self._doors_state == DoorsState.CLOSED:
                         self._action = Action.OPEN_DOORS
-                    else:
-                        self._move[self._flour] = 0
-                        self._call[self._flour] = 0
-                        self._action = Action.CLOSE_DOORS
                 else:
                     for i in range(self._flour - 1, 0, -1):
                         if self._move[i] or self._call[i] == self._direction:
