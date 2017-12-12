@@ -2,7 +2,6 @@ import getopt
 import sys
 from enum import Enum
 from time import sleep, time
-import builtins
 from threading import Thread, Lock, Event
 
 
