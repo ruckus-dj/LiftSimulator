@@ -162,20 +162,29 @@ def main():
             except ValueError:
                 print('Error: Incorrect flour count. Must be integer from 5 to 20.')
         if opt in ['-f', '--flour_height']:
-            if float(arg) <= 0:
-                print('Error: Incorrect flour height. Must be greater then 0.')
-                sys.exit(2)
-            flour_height = float(arg)
+            try:
+                if float(arg) <= 0:
+                    print('Error: Incorrect flour height. Must be float value greater then 0.')
+                    sys.exit(2)
+                flour_height = float(arg)
+            except ValueError:
+                print('Error: Incorrect flour height. Must be float value greater then 0.')
         if opt in ['-s', '--speed']:
-            if float(arg) <= 0:
-                print('Error: Incorrect speed. Must be greater then 0.')
-                sys.exit(2)
-            speed = float(arg)
+            try:
+                if float(arg) <= 0:
+                    print('Error: Incorrect speed. Must be float value greater then 0.')
+                    sys.exit(2)
+                speed = float(arg)
+            except ValueError:
+                print('Error: Incorrect speed. Must be float value greater then 0.')
         if opt in ['-d', '--doors_delay']:
-            if float(arg) <= 0:
-                print('Error: Incorrect doors delay. Must be greater then 0.')
-                sys.exit(2)
-            doors_delay = float(arg)
+            try:
+                if float(arg) <= 0:
+                    print('Error: Incorrect doors delay. Must be float value greater then 0.')
+                    sys.exit(2)
+                doors_delay = float(arg)
+            except ValueError:
+                print('Error: Incorrect doors delay. Must be float value greater then 0.')
     lift = Lift(flour_count, flour_height, speed, doors_delay)
     lift.start()
     try:
