@@ -130,6 +130,7 @@ class Lift(Thread):
                             self._moving = False
                             next_time = start_time
                             sleep(0.0001)
+                        self._action = Action.STOP
                 with self._btn_lock:
                     Thread(target=self._recalculate_next_step).start()
                 self._recalculate_needed.clear()
