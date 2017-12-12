@@ -10,7 +10,6 @@ class Action(Enum):
     DOWN = 2
     STOP = 3
     OPEN_DOORS = 4
-    CLOSE_DOORS = 5
 
 
 class Direction(Enum):
