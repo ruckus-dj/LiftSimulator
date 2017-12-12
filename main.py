@@ -96,7 +96,7 @@ class Lift(Thread):
                     if self._doors_state == DoorsState.CLOSED:
                         self._action = Action.OPEN_DOORS
                 else:
-                    for i in range(self._floor - 1, 0, -1):
+                    for i in range(self._floor - 1, -1, -1):
                         if self._move[i] or self._call[i] == self._direction:
                             self._action = Action.DOWN
 
