@@ -1,7 +1,7 @@
 import getopt
 import sys
 from enum import Enum
-from time import sleep, time
+from time import time
 from threading import Thread, Lock, Event
 
 
@@ -123,13 +123,13 @@ class Lift(Thread):
                             self._doors_state = DoorsState.OPENED
                             next_time += self._doors_delay
                         else:
-                            self._moving = False
-                            next_time = start_time
-                            sleep(0.0001)
+                            self._recalculate_needed.wait()
+                            next_time = time()
                 with self._btn_lock:
                     Thread(target=self._recalculate_next_step).start()
                 self._recalculate_needed.clear()
                 self._recalculate_needed.wait(next_time - time())
+
         except KeyboardInterrupt:
             pass
 
