@@ -76,7 +76,7 @@ class Lift(Thread):
                     self._call[self._floor] & self._direction == 0:
                 self._direction = Direction.DOWN.value
             elif self._direction == Direction.DOWN.value and \
-                    sum(self._move[:self._floor - 1]) + sum(self._call[:self._floor - 1]) == 0 and \
+                    sum(self._move[:self._floor]) + sum(self._call[:self._floor]) == 0 and \
                     self._call[self._floor] & self._direction == 0:
                 self._direction = Direction.UP.value
 
