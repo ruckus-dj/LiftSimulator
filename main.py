@@ -24,11 +24,6 @@ class DoorsState(Enum):
     CLOSED = 2
 
 
-def print(val):
-    from datetime import datetime
-    builtins.print(datetime.now(), val)
-
-
 class Lift(Thread):
 
     def __init__(self, flour_count, flour_height, speed, doors_delay):
